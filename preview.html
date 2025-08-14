@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preview - JSON to Tabular Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            font-weight: 600;
+        }
+
+        .summary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+
+        .summary h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .summary-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .summary-item .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .summary-item .label {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .preview-section {
+            margin-bottom: 30px;
+        }
+
+        .preview-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+
+        .table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #5a6fd8;
+        }
+
+        .table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .table tr:hover {
+            background: #e3f2fd;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #218838;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .columns-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .columns-list h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .columns-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 8px;
+        }
+
+        .column-item {
+            background: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .actions {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Preview Converted Data</h1>
+        
+        <div class="summary">
+            <h3>Conversion Summary</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="value">{{ total_rows }}</div>
+                    <div class="label">Total Rows</div>
+                </div>
+                <div class="summary-item">
+                    <div class="value">{{ total_columns }}</div>
+                    <div class="label">Total Columns</div>
+                </div>
+                <div class="summary-item">
+                    <div class="value">{{ output_format.upper() }}</div>
+                    <div class="label">Output Format</div>
+                </div>
+                <div class="summary-item">
+                    <div class="value">{{ original_filename }}</div>
+                    <div class="label">Source File</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="columns-list">
+            <h4>Columns ({{ columns|length }})</h4>
+            <div class="columns-grid">
+                {% for column in columns %}
+                <div class="column-item">{{ column }}</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="preview-section">
+            <h3>Data Preview (First 20 Rows)</h3>
+            {% if total_rows > 20 %}
+            <div class="note">
+                <strong>Note:</strong> Showing first 20 rows out of {{ total_rows }} total rows.
+            </div>
+            {% endif %}
+            
+            <div class="table-container">
+                {{ df_html|safe }}
+            </div>
+        </div>
+
+        <div class="actions">
+            <a href="{{ url_for('download_file', session_id=session_id) }}" class="btn btn-primary">
+                Download {{ output_format.upper() }} File
+            </a>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                Convert Another File
+            </a>
+        </div>
+    </div>
+</body>
+</html>
