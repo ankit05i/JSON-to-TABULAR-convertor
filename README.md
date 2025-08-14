@@ -90,12 +90,14 @@ This tool takes messy JSON data and turns it into clean, organized tables that y
 
 ```
 json-converter/
-├── run_server.py        # Main application
-├── templates/           # Web pages
+├── main.py              # Main application
+├── run_server.py        # Flask server script
+├── templates/           # Web pages (HTML files)
+│   ├── index.html       # Upload form page
+│   └── preview.html     # Data preview page
 ├── requirements.txt     # Dependencies
-├── setup_and_run.bat   # Windows setup
-├── setup_and_run.sh    # Mac/Linux setup
-└── README.md           # This file
+├── setup_and_run.bat   # Windows setup script
+└── README.md            # Documentation for using the project
 ```
 
 ## ❓ Need Help?
@@ -129,3 +131,4 @@ curl -X POST \
 ---
 
 **Ready to convert your JSON data? Hit the Run button and get started! 🚀**
+
