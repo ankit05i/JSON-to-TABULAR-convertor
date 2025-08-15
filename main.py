@@ -9,6 +9,10 @@ import uuid
 import gc
 from io import StringIO
 import csv
+try:
+    import ijson
+except Exception:
+    ijson = None
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
@@ -84,6 +88,102 @@ def process_json_chunks(json_data, chunk_size=CHUNK_SIZE):
             yield pd.DataFrame([flattened])
         else:
             yield pd.DataFrame([json_data], columns=['value'])
+
+
+def stream_convert_file(file_storage, combined_file_path, sample_size=500, max_preview=20):
+    """Stream-parse incoming JSON/JSONL and write to CSV incrementally.
+    Uses ijson if available (for large JSON arrays). For JSONL, falls back to line-by-line parsing.
+    Returns (total_rows, header, preview_rows)
+    """
+    stream = file_storage.stream
+    # Create iterator over objects
+    def line_iterator(s):
+        for raw in s:
+            if isinstance(raw, bytes):
+                line = raw.decode('utf-8')
+            else:
+                line = raw
+            line = line.strip()
+            if not line:
+                continue
+            yield json.loads(line)
+
+    if ijson:
+        try:
+            iterator = ijson.items(stream, 'item')
+        except Exception:
+            # fallback to line iterator
+            try:
+                stream.seek(0)
+            except Exception:
+                pass
+            iterator = line_iterator(stream)
+    else:
+        try:
+            stream.seek(0)
+        except Exception:
+            pass
+        iterator = line_iterator(stream)
+
+    sampled = []
+    total_rows = 0
+    preview_rows = []
+
+    # Sample first N objects to determine header
+    for _ in range(sample_size):
+        try:
+            obj = next(iterator)
+        except StopIteration:
+            break
+        sampled.append(obj)
+
+    # Build union of keys from sampled objects
+    header_keys = set()
+    for obj in sampled:
+        flat = flatten_json(obj)
+        header_keys.update(flat.keys())
+
+    # Add a reserved column to capture unexpected/new keys beyond the sampled union
+    EXTRA_COL = '_extra'
+    header = sorted(list(header_keys))
+    if EXTRA_COL not in header:
+        header.append(EXTRA_COL)
+
+    # Open CSV and write sampled rows first
+    with open(combined_file_path, 'w', encoding='utf-8', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=header)
+        writer.writeheader()
+
+        def write_flat(flat_obj):
+            # Separate unexpected keys into _extra
+            row = {k: flat_obj.get(k, '') for k in header if k != EXTRA_COL}
+            extra = {k: v for k, v in flat_obj.items() if k not in row}
+            if extra:
+                row[EXTRA_COL] = json.dumps(extra, ensure_ascii=False)
+            else:
+                row[EXTRA_COL] = ''
+            writer.writerow(row)
+
+        for obj in sampled:
+            flat = flatten_json(obj)
+            write_flat(flat)
+            total_rows += 1
+            if len(preview_rows) < max_preview:
+                preview_rows.append(flat)
+
+        # Continue with the rest of the iterator
+        for obj in iterator:
+            try:
+                flat = flatten_json(obj)
+            except Exception:
+                # Skip unparsable object but continue
+                continue
+            write_flat(flat)
+            total_rows += 1
+            if len(preview_rows) < max_preview:
+                preview_rows.append(flat)
+
+    return total_rows, header, preview_rows
 
 def parse_large_json_file(file_content):
     """Parse JSON with fallback to streaming for large files"""

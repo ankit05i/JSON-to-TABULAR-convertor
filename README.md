@@ -90,26 +90,24 @@ This tool takes messy JSON data and turns it into clean, organized tables that y
 
 ```
 json-converter/
-├── main.py              # Main application
-├── run_server.py        # Flask server script
-├── templates/           # Web pages (HTML files)
-│   ├── index.html       # Upload form page
-│   └── preview.html     # Data preview page
+├── run_server.py        # Main application
+├── templates/           # Web pages
 ├── requirements.txt     # Dependencies
-├── setup_and_run.bat   # Windows setup script
-└── README.md            # Documentation for using the project
+├── setup_and_run.bat   # Windows setup
+├── setup_and_run.sh    # Mac/Linux setup
+└── README.md           # This file
 ```
 
 ## ❓ Need Help?
 
 **Q: My JSON file won't upload**
-A: Make sure it's a .json file and under 500MB
+A: Make sure it's a .json file and under 100MB
 
 **Q: The output looks weird**
 A: Complex nested data gets flattened with underscores (e.g., `user_address_city`)
 
 **Q: Can I use this for large datasets?**
-A: Yes! Supports files up to 500MB
+A: Yes! Supports files up to 100MB
 
 **Q: Is my data safe?**
 A: Yes! Everything processes locally, no data is sent to external servers
@@ -132,4 +130,30 @@ curl -X POST \
 
 **Ready to convert your JSON data? Hit the Run button and get started! 🚀**
 
+## 🚢 Deployment notes (large uploads)
 
+If you plan to accept very large uploads (hundreds of MB to multiple GB), adjust your web server and WSGI settings:
+
+- Flask: set `app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024` for 5GB uploads.
+- nginx: in your server block set `client_max_body_size 5G;` and increase timeouts:
+  - `client_body_timeout 600s;`
+  - `proxy_read_timeout 600s;`
+  - `proxy_connect_timeout 600s;`
+- Gunicorn: increase the timeout and use an appropriate worker class. Example:
+  - `gunicorn -w 4 -k gthread --threads 4 --timeout 600 run_server:app`
+
+Notes:
+- Use streaming parsing (the project includes a streaming path using `ijson`/line-by-line JSONL) so the server does not load the whole upload into memory.
+- For very large uploads consider direct-to-cloud uploads (S3 multipart) and process from storage instead of routing through the Flask server.
+
+## ✅ Quick test for streaming path
+
+1. Install dependencies:
+```
+pip install -r requirements.txt
+```
+2. Start the server:
+```
+python run_server.py
+```
+3. Upload a JSONL file (one JSON object per line) via the web UI and verify the preview and download work; this exercises the streaming conversion path.

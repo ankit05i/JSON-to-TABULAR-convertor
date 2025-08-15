@@ -13,6 +13,13 @@ from werkzeug.utils import secure_filename
 import tempfile
 from datetime import datetime
 import uuid
+import gc
+import json
+import csv
+try:
+    import ijson
+except Exception:
+    ijson = None
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here-change-in-production'
@@ -51,6 +58,93 @@ def flatten_json(data, parent_key='', sep='_'):
         items.append((parent_key, data))
     
     return dict(items)
+
+
+def stream_convert_file(file_storage, combined_file_path, sample_size=500, max_preview=20):
+    """Stream-parse incoming JSON/JSONL and write to CSV incrementally.
+    Uses ijson if available (for large JSON arrays). For JSONL, falls back to line-by-line parsing.
+    Returns (total_rows, header, preview_rows)
+    """
+    stream = file_storage.stream
+    def line_iterator(s):
+        for raw in s:
+            if isinstance(raw, bytes):
+                line = raw.decode('utf-8')
+            else:
+                line = raw
+            line = line.strip()
+            if not line:
+                continue
+            yield json.loads(line)
+
+    if ijson:
+        try:
+            iterator = ijson.items(stream, 'item')
+        except Exception:
+            try:
+                stream.seek(0)
+            except Exception:
+                pass
+            iterator = line_iterator(stream)
+    else:
+        try:
+            stream.seek(0)
+        except Exception:
+            pass
+        iterator = line_iterator(stream)
+
+    sampled = []
+    total_rows = 0
+    preview_rows = []
+
+    for _ in range(sample_size):
+        try:
+            obj = next(iterator)
+        except StopIteration:
+            break
+        sampled.append(obj)
+
+    header_keys = set()
+    for obj in sampled:
+        flat = flatten_json(obj)
+        header_keys.update(flat.keys())
+
+    EXTRA_COL = '_extra'
+    header = sorted(list(header_keys))
+    if EXTRA_COL not in header:
+        header.append(EXTRA_COL)
+
+    with open(combined_file_path, 'w', encoding='utf-8', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=header)
+        writer.writeheader()
+
+        def write_flat(flat_obj):
+            row = {k: flat_obj.get(k, '') for k in header if k != EXTRA_COL}
+            extra = {k: v for k, v in flat_obj.items() if k not in row}
+            if extra:
+                row[EXTRA_COL] = json.dumps(extra, ensure_ascii=False)
+            else:
+                row[EXTRA_COL] = ''
+            writer.writerow(row)
+
+        for obj in sampled:
+            flat = flatten_json(obj)
+            write_flat(flat)
+            total_rows += 1
+            if len(preview_rows) < max_preview:
+                preview_rows.append(flat)
+
+        for obj in iterator:
+            try:
+                flat = flatten_json(obj)
+            except Exception:
+                continue
+            write_flat(flat)
+            total_rows += 1
+            if len(preview_rows) < max_preview:
+                preview_rows.append(flat)
+
+    return total_rows, header, preview_rows
 
 def json_to_dataframe(json_data):
     """Convert JSON data to pandas DataFrame"""
