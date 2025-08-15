@@ -103,13 +103,13 @@ json-converter/
 ## ❓ Need Help?
 
 **Q: My JSON file won't upload**
-A: Make sure it's a .json file and under 100MB
+A: Make sure it's a .json file and under 500MB
 
 **Q: The output looks weird**
 A: Complex nested data gets flattened with underscores (e.g., `user_address_city`)
 
 **Q: Can I use this for large datasets?**
-A: Yes! Supports files up to 100MB
+A: Yes! Supports files up to 500MB
 
 **Q: Is my data safe?**
 A: Yes! Everything processes locally, no data is sent to external servers
@@ -131,4 +131,5 @@ curl -X POST \
 ---
 
 **Ready to convert your JSON data? Hit the Run button and get started! 🚀**
+
 
